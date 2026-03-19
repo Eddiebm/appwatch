@@ -1,0 +1,132 @@
+name: AppWatch Scheduled Ping
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-apps:
+    runs-on: ubuntu-latest
+    name: Ping all watched apps
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run health checks
+        id: health
+        run: |
+          CONFIG="appwatch-config.json"
+
+          if [ ! -f "$CONFIG" ]; then
+            echo "::warning::No appwatch-config.json found. Skipping checks."
+            exit 0
+          fi
+
+          TOTAL=$(jq '[.apps[] | select(.name | startswith("_") | not)] | length' $CONFIG)
+          DOWN=0
+          SLOW=0
+          SLEEPING=0
+
+          # Per-platform timeouts and slow thresholds (ms)
+          # Vercel/Railway have cold starts — give them more room
+          DEFAULT_TIMEOUT=10
+          SLOW_MS=3000
+
+          echo "========================================"
+          echo "AppWatch — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          echo "Checking $TOTAL apps..."
+          echo "========================================"
+
+          while IFS= read -r app; do
+            NAME=$(echo "$app" | jq -r '.name')
+            URL=$(echo "$app" | jq -r '.url')
+            CAT=$(echo "$app" | jq -r '.cat')
+
+            # Longer timeout for cold-start platforms
+            if [[ "$CAT" == "Vercel" || "$CAT" == "Railway" ]]; then
+              TIMEOUT=20
+            else
+              TIMEOUT=$DEFAULT_TIMEOUT
+            fi
+
+            START_NS=$(date +%s%N)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time $TIMEOUT \
+              --connect-timeout 5 \
+              -L \
+              -A "AppWatch-Monitor/1.0" \
+              "$URL" 2>/dev/null || echo "000")
+            END_NS=$(date +%s%N)
+            LATENCY=$(( (END_NS - START_NS) / 1000000 ))
+
+            # Classify result
+            if [ "$HTTP_CODE" = "000" ]; then
+              ICON="FAIL"
+              RESULT="DOWN — no response (timeout or DNS failure)"
+              DOWN=$((DOWN+1))
+
+            elif [ "$HTTP_CODE" = "502" ] && [[ "$CAT" == "Railway" ]]; then
+              # Railway returns 502 when a service is suspended (free tier)
+              ICON="SLEEP"
+              RESULT="SLEEPING — Railway service suspended (502). May need manual wake."
+              SLEEPING=$((SLEEPING+1))
+
+            elif [ "$HTTP_CODE" = "402" ] || [ "$HTTP_CODE" = "402" ]; then
+              ICON="ACCT"
+              RESULT="ACCOUNT ISSUE — HTTP $HTTP_CODE. Check billing or free tier limits."
+              DOWN=$((DOWN+1))
+
+            elif [[ "$HTTP_CODE" =~ ^[45] ]]; then
+              ICON="FAIL"
+              RESULT="DOWN — HTTP $HTTP_CODE"
+              DOWN=$((DOWN+1))
+
+            elif [ "$LATENCY" -gt "$SLOW_MS" ] && [[ "$CAT" != "Vercel" && "$CAT" != "Railway" ]]; then
+              # Only flag as slow if NOT a cold-start platform
+              ICON="SLOW"
+              RESULT="SLOW — HTTP $HTTP_CODE in ${LATENCY}ms"
+              SLOW=$((SLOW+1))
+
+            elif [ "$LATENCY" -gt 8000 ] && [[ "$CAT" == "Vercel" || "$CAT" == "Railway" ]]; then
+              # Cold-start platforms get a higher slow bar (8s)
+              ICON="COLD"
+              RESULT="COLD START — HTTP $HTTP_CODE in ${LATENCY}ms (possible sleep wake)"
+              SLOW=$((SLOW+1))
+
+            else
+              ICON="OK"
+              RESULT="UP — HTTP $HTTP_CODE in ${LATENCY}ms"
+            fi
+
+            printf "%-6s | %-30s | %-12s | %s\n" "$ICON" "$NAME" "[$CAT]" "$RESULT"
+
+          done < <(jq -c '.apps[] | select(.name | startswith("_") | not)' $CONFIG)
+
+          echo ""
+          echo "========================================"
+          echo "Summary: $TOTAL checked | DOWN: $DOWN | SLOW/COLD: $SLOW | SLEEPING: $SLEEPING"
+          echo "========================================"
+
+          echo "down=$DOWN" >> $GITHUB_OUTPUT
+          echo "slow=$SLOW" >> $GITHUB_OUTPUT
+          echo "sleeping=$SLEEPING" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+      - name: Flag apps that are down
+        if: steps.health.outputs.down > 0
+        run: |
+          echo "::error::${{ steps.health.outputs.down }} app(s) are DOWN"
+          # To get email from GitHub when apps go down, uncomment:
+          # exit 1
+
+      - name: Warn about slow or cold-starting apps
+        if: steps.health.outputs.slow > 0
+        run: |
+          echo "::warning::${{ steps.health.outputs.slow }} app(s) are slow or cold-starting"
+
+      - name: Note sleeping Railway services
+        if: steps.health.outputs.sleeping > 0
+        run: |
+          echo "::warning::${{ steps.health.outputs.sleeping }} Railway service(s) appear suspended (free tier limit)"

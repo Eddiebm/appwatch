@@ -1,0 +1,21 @@
+{
+  "apps": [
+    { "name": "COARE Holdings Site",  "url": "https://coare.bio",                     "cat": "Other" },
+    { "name": "FrankGrant",           "url": "https://frankgrant.pages.dev",           "cat": "Cloudflare Pages" },
+    { "name": "MedOS Africa",         "url": "https://medos-africa.pages.dev",         "cat": "Cloudflare Pages" },
+    { "name": "Bannerman Leasing",    "url": "https://leasingapp.pages.dev",           "cat": "Cloudflare Pages" },
+
+    { "name": "My Vercel App 1",      "url": "https://my-app.vercel.app",              "cat": "Vercel" },
+    { "name": "My Vercel App 2",      "url": "https://my-other-app.vercel.app",        "cat": "Vercel" },
+
+    { "name": "My Railway Service 1", "url": "https://my-service.up.railway.app",      "cat": "Railway" },
+    { "name": "My Railway Service 2", "url": "https://my-api.up.railway.app/health",   "cat": "Railway" }
+  ],
+
+  "_notes": {
+    "vercel": "Vercel deployments sleep after inactivity on free tier. First ping may be slow (cold start). Use the /api/health route if available, otherwise root URL.",
+    "railway": "Railway services on free tier may be suspended after 500 hrs/month. Prefer a /health endpoint over root. If it returns 502, the service is sleeping — not necessarily gone.",
+    "cloudflare_pages": "Always-on, no cold starts. HEAD requests work fine.",
+    "slow_threshold_ms": 4000
+  }
+}

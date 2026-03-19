@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AppWatch — Fleet Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: rgba(255,255,255,0.07);
+    --border-hi: rgba(255,255,255,0.15);
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --green: #00e5a0;
+    --green-dim: rgba(0,229,160,0.12);
+    --red: #ff4d6d;
+    --red-dim: rgba(255,77,109,0.12);
+    --amber: #ffb627;
+    --amber-dim: rgba(255,182,39,0.12);
+    --blue: #4d9fff;
+    --blue-dim: rgba(77,159,255,0.1);
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 12px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .last-check {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  button:hover { background: var(--surface2); border-color: var(--blue); color: var(--blue); }
+  button:active { transform: scale(0.97); }
+
+  button.primary {
+    background: var(--green-dim);
+    border-color: var(--green);
+    color: var(--green);
+  }
+  button.primary:hover { background: rgba(0,229,160,0.22); }
+
+  button.primary.spinning { opacity: 0.6; pointer-events: none; }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat {
+    background: var(--bg);
+    padding: 1.25rem 2rem;
+  }
+
+  .stat-label {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 2rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-value.blue { color: var(--blue); }
+
+  .main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+    margin-bottom: 3rem;
+  }
+
+  .app-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .app-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+
+  .app-card.up::before { background: var(--green); }
+  .app-card.down::before { background: var(--red); }
+  .app-card.slow::before { background: var(--amber); }
+  .app-card.checking::before { background: var(--blue); animation: shimmer 1s ease-in-out infinite; }
+  .app-card.unknown::before { background: var(--muted); }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .app-card:hover { border-color: var(--border-hi); }
+
+  .app-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .app-name {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+  }
+
+  .app-url {
+    color: var(--muted);
+    font-size: 10px;
+    word-break: break-all;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .status-badge.up { background: var(--green-dim); color: var(--green); }
+  .status-badge.down { background: var(--red-dim); color: var(--red); }
+  .status-badge.slow { background: var(--amber-dim); color: var(--amber); }
+  .status-badge.checking { background: var(--blue-dim); color: var(--blue); }
+  .status-badge.unknown { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .app-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .app-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .meta-label { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .meta-value { font-size: 12px; }
+  .meta-value.green { color: var(--green); }
+  .meta-value.red { color: var(--red); }
+  .meta-value.amber { color: var(--amber); }
+
+  .sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+    margin-top: 10px;
+  }
+
+  .spark-bar {
+    flex: 1;
+    border-radius: 1px;
+    min-height: 2px;
+    transition: height 0.3s;
+  }
+
+  .spark-bar.up { background: var(--green); opacity: 0.7; }
+  .spark-bar.down { background: var(--red); opacity: 0.8; height: 100% !important; }
+  .spark-bar.slow { background: var(--amber); opacity: 0.7; }
+  .spark-bar.unknown { background: var(--border-hi); height: 4px !important; }
+
+  .add-section {
+    background: var(--surface);
+    border: 1px dashed var(--border-hi);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 3rem;
+  }
+
+  .add-section h3 {
+    font-family: var(--display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  input, select {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  input:focus, select:focus { border-color: var(--blue); }
+  select option { background: var(--bg); }
+
+  .log-section { margin-bottom: 2rem; }
+
+  .log-entries {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .log-entry {
+    display: grid;
+    grid-template-columns: 140px 1fr 80px 100px;
+    gap: 1rem;
+    padding: 8px 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    align-items: center;
+    transition: background 0.1s;
+  }
+
+  .log-entry:hover { background: var(--surface2); }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); }
+  .log-app { color: var(--text); }
+  .log-latency { text-align: right; }
+  .log-status { text-align: right; }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+  }
+
+  .empty-state .big { font-family: var(--display); font-weight: 800; font-size: 3rem; color: var(--border-hi); margin-bottom: 0.5rem; }
+
+  .config-export {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    display: none;
+  }
+
+  .config-export.visible { display: block; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+
+  @media (max-width: 768px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .form-row { grid-template-columns: 1fr 1fr; }
+    .log-entry { grid-template-columns: 100px 1fr 70px; }
+    .log-status { display: none; }
+    .main { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot" id="masterDot"></div>
+    AppWatch
+  </div>
+  <div class="header-actions">
+    <span class="last-check" id="lastCheck">Never checked</span>
+    <button onclick="exportConfig()">Export JSON</button>
+    <button class="primary" id="checkBtn" onclick="checkAll()">Check All</button>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-label">Total Apps</div>
+    <div class="stat-value blue" id="stat-total">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Up</div>
+    <div class="stat-value green" id="stat-up">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Down / Slow</div>
+    <div class="stat-value red" id="stat-down">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Avg Latency</div>
+    <div class="stat-value amber" id="stat-latency">—</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="add-section">
+    <h3>Add App to Watch</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>App Name</label>
+        <input id="new-name" type="text" placeholder="My Cool App" />
+      </div>
+      <div class="form-group">
+        <label>URL</label>
+        <input id="new-url" type="url" placeholder="https://myapp.pages.dev" />
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select id="new-cat">
+          <option>Cloudflare Pages</option>
+          <option>Supabase</option>
+          <option>Vercel</option>
+          <option>Netlify</option>
+          <option>API</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <button class="primary" onclick="addApp()" style="height:34px;align-self:end">+ Add</button>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title">Watched Apps (<span id="app-count">0</span>)</span>
+    <button onclick="toggleConfig()" id="cfgBtn">Show Config JSON</button>
+  </div>
+
+  <div id="apps-grid" class="apps-grid">
+    <div class="empty-state">
+      <div class="big">0</div>
+      <div>No apps added yet. Add your first app above.</div>
+    </div>
+  </div>
+
+  <pre class="config-export" id="configExport"></pre>
+
+  <div class="log-section">
+    <div class="section-header">
+      <span class="section-title">Check Log</span>
+      <button onclick="clearLog()">Clear Log</button>
+    </div>
+    <div class="log-entries" id="logEntries">
+      <div class="empty-state" style="padding:2rem">
+        <div style="color:var(--muted)">No checks run yet.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'appwatch_apps';
+const LOG_KEY = 'appwatch_log';
+const SLOW_THRESHOLD = 3000;
+const COLD_START_THRESHOLD = 8000;
+const COLD_START_CATS = ['Vercel', 'Railway'];
+
+let apps = [];
+let log = [];
+
+function load() {
+  try {
+    apps = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    log = JSON.parse(localStorage.getItem(LOG_KEY)) || [];
+  } catch(e) {
+    apps = [];
+    log = [];
+  }
+  if (apps.length === 0) seedDefaults();
+  render();
+  renderLog();
+  updateStats();
+}
+
+function seedDefaults() {
+  apps = [
+    { id: uid(), name: 'Example App', url: 'https://example.com', cat: 'Other', history: [], lastStatus: 'unknown', lastMs: null, lastChecked: null },
+  ];
+  save();
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(apps));
+  localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(-200)));
+}
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+function addApp() {
+  const name = document.getElementById('new-name').value.trim();
+  const url = document.getElementById('new-url').value.trim();
+  const cat = document.getElementById('new-cat').value;
+  if (!name || !url) return alert('Name and URL required.');
+  let full = url;
+  if (!/^https?:\/\//i.test(full)) full = 'https://' + full;
+  apps.push({ id: uid(), name, url: full, cat, history: [], lastStatus: 'unknown', lastMs: null, lastChecked: null });
+  save();
+  render();
+  updateStats();
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-url').value = '';
+}
+
+function removeApp(id) {
+  if (!confirm('Remove this app?')) return;
+  apps = apps.filter(a => a.id !== id);
+  save();
+  render();
+  updateStats();
+}
+
+async function checkApp(app) {
+  app.lastStatus = 'checking';
+  renderCard(app);
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(app.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal, cache: 'no-cache' });
+    clearTimeout(timeout);
+    const ms = Date.now() - start;
+    app.lastMs = ms;
+    app.lastChecked = new Date().toISOString();
+    const isColdStart = COLD_START_CATS.includes(app.cat);
+    const threshold = isColdStart ? COLD_START_THRESHOLD : SLOW_THRESHOLD;
+    app.lastStatus = ms > threshold ? 'slow' : 'up';
+  } catch(e) {
+    const ms = Date.now() - start;
+    app.lastMs = ms;
+    app.lastChecked = new Date().toISOString();
+    if (e.name === 'AbortError') {
+      app.lastStatus = 'slow';
+    } else {
+      app.lastStatus = 'down';
+    }
+  }
+  app.history = [...(app.history || []).slice(-29), app.lastStatus];
+  addLogEntry(app);
+  renderCard(app);
+  save();
+}
+
+function addLogEntry(app) {
+  log.unshift({
+    time: new Date().toISOString(),
+    app: app.name,
+    url: app.url,
+    status: app.lastStatus,
+    ms: app.lastMs
+  });
+  log = log.slice(0, 200);
+}
+
+async function checkAll() {
+  const btn = document.getElementById('checkBtn');
+  btn.classList.add('spinning');
+  btn.textContent = 'Checking...';
+  document.getElementById('masterDot').style.background = 'var(--blue)';
+  document.getElementById('masterDot').style.boxShadow = '0 0 12px var(--blue)';
+  await Promise.all(apps.map(a => checkApp(a)));
+  save();
+  updateStats();
+  renderLog();
+  const now = new Date();
+  document.getElementById('lastCheck').textContent = 'Last: ' + now.toLocaleTimeString();
+  btn.classList.remove('spinning');
+  btn.textContent = 'Check All';
+  const anyDown = apps.some(a => a.lastStatus === 'down');
+  const anySlow = apps.some(a => a.lastStatus === 'slow');
+  const col = anyDown ? 'var(--red)' : anySlow ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('masterDot').style.background = col;
+  document.getElementById('masterDot').style.boxShadow = '0 0 12px ' + col;
+}
+
+function updateStats() {
+  const total = apps.length;
+  const up = apps.filter(a => a.lastStatus === 'up').length;
+  const down = apps.filter(a => ['down', 'slow'].includes(a.lastStatus)).length;
+  const latencies = apps.filter(a => a.lastMs !== null).map(a => a.lastMs);
+  const avg = latencies.length ? Math.round(latencies.reduce((a,b)=>a+b,0)/latencies.length) : null;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-up').textContent = up;
+  document.getElementById('stat-down').textContent = down;
+  document.getElementById('stat-latency').textContent = avg !== null ? avg + 'ms' : '—';
+  document.getElementById('app-count').textContent = total;
+}
+
+function statusColor(s) {
+  return s === 'up' ? 'green' : s === 'down' ? 'red' : s === 'slow' ? 'amber' : s === 'checking' ? 'blue' : '';
+}
+
+function statusLabel(s) {
+  return s === 'up' ? 'Up' : s === 'down' ? 'Down' : s === 'slow' ? 'Slow' : s === 'checking' ? '...' : 'Unknown';
+}
+
+function renderCard(app) {
+  const existing = document.getElementById('card-' + app.id);
+  const html = buildCard(app);
+  if (existing) {
+    existing.outerHTML = html;
+  }
+}
+
+function buildCard(app) {
+  const s = app.lastStatus || 'unknown';
+  const c = statusColor(s);
+  const hist = (app.history || []).slice(-20);
+  const histPad = Array(20 - hist.length).fill('unknown').concat(hist);
+  const sparkBars = histPad.map(h => {
+    const hc = statusColor(h);
+    const heightPct = h === 'unknown' ? 4 : h === 'down' ? 100 : h === 'slow' ? 70 : 60;
+    return `<div class="spark-bar ${h}" style="height:${heightPct}%"></div>`;
+  }).join('');
+
+  const isColdStart = COLD_START_CATS.includes(app.cat);
+  const threshold = isColdStart ? COLD_START_THRESHOLD : SLOW_THRESHOLD;
+  const metaMs = app.lastMs !== null ? `<span class="meta-value ${app.lastMs > threshold ? 'amber' : 'green'}">${app.lastMs}ms</span>` : '<span class="meta-value" style="color:var(--muted)">—</span>';
+  const metaTime = app.lastChecked ? `<span class="meta-value">${new Date(app.lastChecked).toLocaleTimeString()}</span>` : '<span class="meta-value" style="color:var(--muted)">—</span>';
+
+  return `<div class="app-card ${s}" id="card-${app.id}">
+    <div class="app-card-header">
+      <div>
+        <div class="app-name">${escHtml(app.name)}</div>
+        <div class="app-url">${escHtml(app.url)}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div class="status-badge ${s}">
+          <div class="status-dot"></div>${statusLabel(s)}
+        </div>
+        <button onclick="removeApp('${app.id}')" style="padding:3px 7px;font-size:10px;border-color:var(--border);color:var(--muted)" title="Remove">✕</button>
+      </div>
+    </div>
+    <div class="sparkline">${sparkBars}</div>
+    <div class="app-meta">
+      <div class="app-meta-item">
+        <span class="meta-label">Latency</span>${metaMs}
+      </div>
+      <div class="app-meta-item">
+        <span class="meta-label">Last Check</span>${metaTime}
+      </div>
+      <div class="app-meta-item">
+        <span class="meta-label">Category</span>
+        <span class="meta-value" style="color:var(--muted)">${escHtml(app.cat)}</span>
+      </div>
+      <div class="app-meta-item" style="margin-left:auto">
+        <span class="meta-label">&nbsp;</span>
+        <button onclick="checkApp(apps.find(a=>a.id==='${app.id}')).then(()=>{updateStats();renderLog();})" style="padding:3px 10px;font-size:10px">Ping</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function render() {
+  const grid = document.getElementById('apps-grid');
+  if (apps.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="big">0</div><div>No apps added yet.</div></div>`;
+    return;
+  }
+  grid.innerHTML = apps.map(buildCard).join('');
+}
+
+function renderLog() {
+  const el = document.getElementById('logEntries');
+  if (log.length === 0) {
+    el.innerHTML = `<div class="empty-state" style="padding:2rem"><div style="color:var(--muted)">No checks run yet.</div></div>`;
+    return;
+  }
+  el.innerHTML = log.slice(0, 60).map(e => {
+    const c = statusColor(e.status);
+    const ms = e.ms !== null ? e.ms + 'ms' : '—';
+    const t = new Date(e.time);
+    const timeStr = t.toLocaleDateString() + ' ' + t.toLocaleTimeString();
+    return `<div class="log-entry">
+      <span class="log-time">${timeStr}</span>
+      <span class="log-app">${escHtml(e.app)}</span>
+      <span class="log-latency" style="color:${e.ms > SLOW_THRESHOLD ? 'var(--amber)' : 'var(--muted)'}">${ms}</span>
+      <span class="log-status" style="color:var(--${c === 'green' ? 'green' : c === 'red' ? 'red' : c === 'amber' ? 'amber' : 'muted'})">${statusLabel(e.status)}</span>
+    </div>`;
+  }).join('');
+}
+
+function clearLog() {
+  if (!confirm('Clear all log entries?')) return;
+  log = [];
+  save();
+  renderLog();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function exportConfig() {
+  const cfg = { apps: apps.map(a => ({ name: a.name, url: a.url, cat: a.cat })) };
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'appwatch-config.json';
+  a.click();
+}
+
+function toggleConfig() {
+  const el = document.getElementById('configExport');
+  const btn = document.getElementById('cfgBtn');
+  if (el.classList.contains('visible')) {
+    el.classList.remove('visible');
+    btn.textContent = 'Show Config JSON';
+  } else {
+    const cfg = { apps: apps.map(a => ({ name: a.name, url: a.url, cat: a.cat })) };
+    el.textContent = JSON.stringify(cfg, null, 2);
+    el.classList.add('visible');
+    btn.textContent = 'Hide Config JSON';
+  }
+}
+
+load();
+</script>
+</body>
+</html>
