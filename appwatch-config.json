@@ -5,7 +5,8 @@
     { "name": "MedOS Africa",         "url": "https://medos-africa.pages.dev",         "cat": "Cloudflare Pages" },
     { "name": "Bannerman Leasing",    "url": "https://leasingapp.pages.dev",           "cat": "Cloudflare Pages" },
     { "name": "Relentis",             "url": "https://relentis.app",                   "cat": "Other" },
-    { "name": "RentLease",            "url": "https://rentlease.app",                  "cat": "Other" }
+    { "name": "RentLease",            "url": "https://rentlease.app",                  "cat": "Other" },
+    { "name": "Real Estate Without Bullshit", "url": "https://www.realestatewithoutbullshit.com", "cat": "Other" }
   ],
 
   "_notes": {
