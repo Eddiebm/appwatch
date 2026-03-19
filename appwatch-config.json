@@ -8,7 +8,8 @@
     { "name": "RentLease",            "url": "https://rentlease.app",                  "cat": "Other" },
     { "name": "Real Estate Without Bullshit", "url": "https://www.realestatewithoutbullshit.com", "cat": "Other" },
     { "name": "NIH Payline",          "url": "https://www.nihpayline.com",              "cat": "Other" },
-    { "name": "LexOS Africa",         "url": "https://lexos-africa.pages.dev",          "cat": "Cloudflare Pages" }
+    { "name": "LexOS Africa",         "url": "https://lexos-africa.pages.dev",          "cat": "Cloudflare Pages" },
+    { "name": "MedOS",                "url": "https://medos.pages.dev",                 "cat": "Cloudflare Pages" }
   ],
 
   "_notes": {
