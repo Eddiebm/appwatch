@@ -408,6 +408,7 @@
   <div class="header-actions">
     <span class="last-check" id="lastCheck">Never checked</span>
     <button onclick="exportConfig()">Export JSON</button>
+    <button id="syncBtn" onclick="syncFromGithub()">Sync GitHub</button>
     <button class="primary" id="checkBtn" onclick="checkAll()">Check All</button>
   </div>
 </div>
@@ -497,6 +498,8 @@ const COLD_START_CATS = ['Vercel', 'Railway'];
 let apps = [];
 let log = [];
 
+const GITHUB_CONFIG_URL = 'https://raw.githubusercontent.com/Eddiebm/appwatch/main/appwatch-config.json';
+
 function load() {
   try {
     apps = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -505,17 +508,69 @@ function load() {
     apps = [];
     log = [];
   }
-  if (apps.length === 0) seedDefaults();
   render();
   renderLog();
   updateStats();
+  // Always try to sync from GitHub on load
+  syncFromGithub({ silent: true });
 }
 
-function seedDefaults() {
-  apps = [
-    { id: uid(), name: 'Example App', url: 'https://example.com', cat: 'Other', history: [], lastStatus: 'unknown', lastMs: null, lastChecked: null },
-  ];
-  save();
+async function syncFromGithub({ silent = false } = {}) {
+  const btn = document.getElementById('syncBtn');
+  if (btn) { btn.textContent = 'Syncing...'; btn.disabled = true; }
+  try {
+    const res = await fetch(GITHUB_CONFIG_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cfg = await res.json();
+    const remoteApps = (cfg.apps || []).filter(a => !a.name.startsWith('_'));
+
+    // Merge: preserve history/status for existing apps, add new ones
+    const existingById = {};
+    apps.forEach(a => { existingById[a.url] = a; });
+
+    const merged = remoteApps.map(ra => {
+      const existing = existingById[ra.url];
+      if (existing) {
+        // Update name/cat in case they changed, keep history
+        return { ...existing, name: ra.name, cat: ra.cat };
+      }
+      return { id: uid(), name: ra.name, url: ra.url, cat: ra.cat, history: [], lastStatus: 'unknown', lastMs: null, lastChecked: null };
+    });
+
+    // Keep any locally-added apps not in GitHub config
+    const remoteUrls = new Set(remoteApps.map(a => a.url));
+    apps.filter(a => !remoteUrls.has(a.url)).forEach(a => merged.push(a));
+
+    apps = merged;
+    save();
+    render();
+    updateStats();
+
+    const syncTime = new Date().toLocaleTimeString();
+    if (btn) btn.title = 'Last synced: ' + syncTime;
+    if (!silent) showToast('Synced from GitHub — ' + remoteApps.length + ' apps loaded');
+  } catch(e) {
+    if (!silent) showToast('Sync failed: ' + e.message, true);
+  } finally {
+    if (btn) { btn.textContent = 'Sync GitHub'; btn.disabled = false; }
+  }
+}
+
+function showToast(msg, isError = false) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:6px;font-size:12px;font-family:var(--mono);z-index:9999;transition:opacity 0.4s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = isError ? 'var(--red-dim)' : 'var(--green-dim)';
+  t.style.color = isError ? 'var(--red)' : 'var(--green)';
+  t.style.border = '1px solid ' + (isError ? 'var(--red)' : 'var(--green)');
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
 }
 
 function save() {
