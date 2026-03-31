@@ -873,11 +873,50 @@ function toggleConfig() {
   }
 }
 
+// Platform status page APIs (all public, no auth needed)
+const PLATFORM_STATUS = {
+  'Cloudflare Pages': { url: 'https://www.cloudflarestatus.com/api/v2/status.json', key: 'cloudflare' },
+  'Cloudflare Workers': { url: 'https://www.cloudflarestatus.com/api/v2/status.json', key: 'cloudflare' },
+  'Vercel': { url: 'https://www.vercel-status.com/api/v2/status.json', key: 'vercel' },
+  'Railway': { url: 'https://status.railway.app/api/v2/status.json', key: 'railway' },
+  'Netlify': { url: 'https://www.netlifystatus.com/api/v2/status.json', key: 'netlify' },
+  'Supabase': { url: 'https://status.supabase.com/api/v2/status.json', key: 'supabase' },
+};
+
+async function fetchPlatformStatus(platform) {
+  const entry = PLATFORM_STATUS[platform];
+  if (!entry) return null;
+  try {
+    const res = await fetch(entry.url, { cache: 'no-cache' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const indicator = data?.status?.indicator || 'unknown';
+    const desc = data?.status?.description || 'Unknown';
+    return { indicator, desc, pageUrl: data?.page?.url || null };
+  } catch(e) {
+    return null;
+  }
+}
+
+function inferHosting(domain, cat) {
+  if (domain.endsWith('.pages.dev') || cat === 'Cloudflare Pages') return 'Cloudflare Pages';
+  if (domain.endsWith('.workers.dev') || cat === 'Cloudflare Workers') return 'Cloudflare Workers';
+  if (domain.endsWith('.vercel.app') || cat === 'Vercel') return 'Vercel';
+  if (domain.endsWith('.up.railway.app') || cat === 'Railway') return 'Railway';
+  if (domain.endsWith('.netlify.app') || cat === 'Netlify') return 'Netlify';
+  if (domain.endsWith('.fly.dev')) return 'Fly.io';
+  if (domain.endsWith('.onrender.com')) return 'Render';
+  if (domain.endsWith('.herokuapp.com')) return 'Heroku';
+  if (domain.endsWith('.supabase.co')) return 'Supabase';
+  if (domain.endsWith('.github.io')) return 'GitHub Pages';
+  if (domain.endsWith('.web.app') || domain.endsWith('.firebaseapp.com')) return 'Firebase';
+  return cat || 'Unknown';
+}
+
 async function showReport(id) {
   const app = apps.find(a => a.id === id);
   if (!app) return;
 
-  // Show modal with loading state
   let modal = document.getElementById('reportModal');
   if (!modal) {
     modal = document.createElement('div');
@@ -890,64 +929,7 @@ async function showReport(id) {
   modal.style.display = 'flex';
 
   const inner = document.getElementById('reportModalInner');
-  inner.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-title">${escHtml(app.name)}</div>
-      <button class="modal-close" onclick="closeReport()">✕</button>
-    </div>
-    <div class="report-checking">Running diagnostics...</div>`;
-
-  // Run checks
-  const results = {};
-  const start = Date.now();
-
-  // 1. Basic reachability via HEAD (no-cors)
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15000);
-    await fetch(app.url, { method: 'HEAD', mode: 'no-cors', cache: 'no-cache', signal: ctrl.signal });
-    clearTimeout(t);
-    results.reachable = true;
-    results.latency = Date.now() - start;
-  } catch(e) {
-    results.reachable = e.name === 'AbortError' ? 'timeout' : false;
-    results.latency = Date.now() - start;
-  }
-
-  // 2. DNS/domain check via fetch to a known-good CORS endpoint
-  const domain = new URL(app.url).hostname;
-  results.domain = domain;
-
-  // 3. SSL check — if URL is https, it's SSL
-  results.ssl = app.url.startsWith('https://') ? 'HTTPS enforced' : 'No SSL (HTTP only)';
-
-  // 4. Platform inference
-  let platform = app.cat;
-  if (domain.endsWith('.pages.dev')) platform = 'Cloudflare Pages';
-  else if (domain.endsWith('.vercel.app')) platform = 'Vercel';
-  else if (domain.endsWith('.up.railway.app')) platform = 'Railway';
-  else if (domain.endsWith('.netlify.app')) platform = 'Netlify';
-  else if (domain.endsWith('.workers.dev')) platform = 'Cloudflare Workers';
-  results.platform = platform;
-
-  // 5. History summary
-  const hist = app.history || [];
-  const upCount = hist.filter(h => h === 'up').length;
-  const downCount = hist.filter(h => h === 'down').length;
-  const uptime = hist.length > 0 ? Math.round((upCount / hist.length) * 100) : null;
-
-  // 6. Last known status
-  results.lastStatus = app.lastStatus || 'unknown';
-  results.lastMs = app.lastMs;
-  results.lastChecked = app.lastChecked;
-
-  const isColdStart = COLD_START_CATS.includes(app.cat);
-  const threshold = isColdStart ? COLD_START_THRESHOLD : SLOW_THRESHOLD;
-  const latencyColor = !results.reachable ? 'red' : results.latency > threshold ? 'amber' : 'green';
-  const reachableLabel = results.reachable === true ? 'Reachable' : results.reachable === 'timeout' ? 'Timeout (15s)' : 'Unreachable';
-  const reachableColor = results.reachable === true ? 'green' : results.reachable === 'timeout' ? 'amber' : 'red';
-
-  inner.innerHTML = `
+  const modalHeader = `
     <div class="modal-header">
       <div>
         <div class="modal-title">${escHtml(app.name)}</div>
@@ -957,21 +939,97 @@ async function showReport(id) {
         <a href="${escHtml(app.url)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);text-decoration:none;border:1px solid var(--blue);padding:4px 10px;border-radius:4px">Open Site ↗</a>
         <button class="modal-close" onclick="closeReport()">✕</button>
       </div>
-    </div>
+    </div>`;
 
-    <div class="report-section-title">Live Diagnostics</div>
+  inner.innerHTML = modalHeader + `<div class="report-checking">Running diagnostics — checking reachability, hosting, and platform status...</div>`;
+
+  const domain = new URL(app.url).hostname;
+  const platform = inferHosting(domain, app.cat);
+  const isColdStart = COLD_START_CATS.includes(platform) || COLD_START_CATS.includes(app.cat);
+  const threshold = isColdStart ? COLD_START_THRESHOLD : SLOW_THRESHOLD;
+
+  // Run all checks in parallel
+  const [reachResult, platformStatus] = await Promise.all([
+    // Reachability check
+    (async () => {
+      const start = Date.now();
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 15000);
+        await fetch(app.url, { method: 'HEAD', mode: 'no-cors', cache: 'no-cache', signal: ctrl.signal });
+        clearTimeout(t);
+        return { ok: true, latency: Date.now() - start };
+      } catch(e) {
+        return { ok: e.name === 'AbortError' ? 'timeout' : false, latency: Date.now() - start };
+      }
+    })(),
+    // Platform status
+    fetchPlatformStatus(platform),
+  ]);
+
+  // History
+  const hist = app.history || [];
+  const upCount = hist.filter(h => h === 'up').length;
+  const downCount = hist.filter(h => h === 'down').length;
+  const slowCount = hist.filter(h => h === 'slow').length;
+  const uptime = hist.length > 0 ? Math.round((upCount / hist.length) * 100) : null;
+
+  // Derive display values
+  const reachableLabel = reachResult.ok === true ? 'Reachable' : reachResult.ok === 'timeout' ? 'Timeout (15s)' : 'Unreachable';
+  const reachableColor = reachResult.ok === true ? 'green' : reachResult.ok === 'timeout' ? 'amber' : 'red';
+  const latencyColor = !reachResult.ok ? 'red' : reachResult.latency > threshold ? 'amber' : 'green';
+  const sslLabel = app.url.startsWith('https://') ? 'HTTPS' : 'HTTP only — no SSL';
+  const sslColor = app.url.startsWith('https://') ? 'green' : 'red';
+
+  // Platform status display
+  let platformStatusHtml = '';
+  if (platformStatus) {
+    const ind = platformStatus.indicator;
+    const indColor = ind === 'none' ? 'green' : ind === 'minor' ? 'amber' : 'red';
+    const indLabel = ind === 'none' ? 'All systems operational' : platformStatus.desc;
+    const statusLink = platformStatus.pageUrl
+      ? `<a href="${platformStatus.pageUrl}" target="_blank" style="color:var(--blue);text-decoration:none;font-size:10px;margin-left:6px">Status page ↗</a>`
+      : '';
+    platformStatusHtml = `<div class="report-row"><span class="report-key">Platform status</span><span class="report-val ${indColor}">${indLabel}${statusLink}</span></div>`;
+  } else {
+    platformStatusHtml = `<div class="report-row"><span class="report-key">Platform status</span><span class="report-val" style="color:var(--muted)">Not available</span></div>`;
+  }
+
+  // Hosting details by platform
+  const hostingDetails = {
+    'Cloudflare Pages': 'Global CDN — 300+ edge locations. Always-on, no cold starts. Free SSL.',
+    'Cloudflare Workers': 'Edge compute — runs at 300+ locations. Sub-ms cold start.',
+    'Vercel': 'Edge network + serverless functions. Free tier sleeps after inactivity.',
+    'Railway': 'Container hosting. Free tier: 500 hrs/month, then suspended.',
+    'Netlify': 'Global CDN. Serverless functions on free tier. Always-on for static.',
+    'Fly.io': 'VM-based, runs in ~30 regions. Fast cold starts.',
+    'Render': 'Cloud hosting. Free tier sleeps after 15min inactivity.',
+    'Heroku': 'Container hosting. Free tier discontinued — paid only now.',
+    'Supabase': 'Managed PostgreSQL + Auth + Storage. Free tier pauses after 1 week inactivity.',
+    'GitHub Pages': 'Static hosting only. Global CDN via Fastly. Always-on.',
+    'Firebase': 'Google CDN. Always-on for static. Functions have cold starts.',
+  };
+  const hostingNote = hostingDetails[platform] || 'Custom or unknown hosting.';
+
+  inner.innerHTML = modalHeader + `
+    <div class="report-section-title">Live Check</div>
     <div class="report-row"><span class="report-key">Reachability</span><span class="report-val ${reachableColor}">${reachableLabel}</span></div>
-    <div class="report-row"><span class="report-key">Response time</span><span class="report-val ${latencyColor}">${results.latency}ms</span></div>
-    <div class="report-row"><span class="report-key">SSL / HTTPS</span><span class="report-val ${results.ssl.includes('HTTPS') ? 'green' : 'amber'}">${results.ssl}</span></div>
-    <div class="report-row"><span class="report-key">Domain</span><span class="report-val">${results.domain}</span></div>
-    <div class="report-row"><span class="report-key">Platform</span><span class="report-val blue">${results.platform}</span></div>
+    <div class="report-row"><span class="report-key">Response time</span><span class="report-val ${latencyColor}">${reachResult.latency}ms${isColdStart ? ' <span style="color:var(--muted);font-size:10px">(cold start threshold: 8s)</span>' : ''}</span></div>
+    <div class="report-row"><span class="report-key">SSL</span><span class="report-val ${sslColor}">${sslLabel}</span></div>
+    <div class="report-row"><span class="report-key">Domain</span><span class="report-val">${domain}</span></div>
 
-    <div class="report-section-title">History (last ${hist.length} checks)</div>
-    <div class="report-row"><span class="report-key">Uptime</span><span class="report-val ${uptime >= 90 ? 'green' : uptime >= 70 ? 'amber' : 'red'}">${uptime !== null ? uptime + '%' : 'No history yet'}</span></div>
-    <div class="report-row"><span class="report-key">Up checks</span><span class="report-val green">${upCount}</span></div>
-    <div class="report-row"><span class="report-key">Down checks</span><span class="report-val ${downCount > 0 ? 'red' : ''}">${downCount}</span></div>
-    <div class="report-row"><span class="report-key">Last ping status</span><span class="report-val ${statusColor(results.lastStatus)}">${statusLabel(results.lastStatus)}</span></div>
-    <div class="report-row"><span class="report-key">Last pinged</span><span class="report-val">${results.lastChecked ? new Date(results.lastChecked).toLocaleString() : 'Never'}</span></div>
+    <div class="report-section-title">Hosting</div>
+    <div class="report-row"><span class="report-key">Platform</span><span class="report-val blue">${platform}</span></div>
+    <div class="report-row"><span class="report-key">Infrastructure</span><span class="report-val" style="color:var(--muted);font-size:11px;text-align:right">${hostingNote}</span></div>
+    ${platformStatusHtml}
+
+    <div class="report-section-title">Uptime History (last ${hist.length} pings)</div>
+    <div class="report-row"><span class="report-key">Uptime</span><span class="report-val ${uptime === null ? '' : uptime >= 90 ? 'green' : uptime >= 70 ? 'amber' : 'red'}">${uptime !== null ? uptime + '%' : 'No history yet'}</span></div>
+    <div class="report-row"><span class="report-key">Up</span><span class="report-val green">${upCount} checks</span></div>
+    <div class="report-row"><span class="report-key">Slow</span><span class="report-val ${slowCount > 0 ? 'amber' : ''}">${slowCount} checks</span></div>
+    <div class="report-row"><span class="report-key">Down</span><span class="report-val ${downCount > 0 ? 'red' : ''}">${downCount} checks</span></div>
+    <div class="report-row"><span class="report-key">Last checked</span><span class="report-val">${app.lastChecked ? new Date(app.lastChecked).toLocaleString() : 'Never'}</span></div>
+    <div class="report-row"><span class="report-key">Last status</span><span class="report-val ${statusColor(app.lastStatus || 'unknown')}">${statusLabel(app.lastStatus || 'unknown')}</span></div>
   `;
 }
 
