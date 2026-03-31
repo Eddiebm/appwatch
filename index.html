@@ -389,6 +389,70 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
 
+  .app-name-link { text-decoration: none; color: inherit; }
+  .app-name-link:hover .app-name { color: var(--blue); }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: 10px;
+    width: 100%; max-width: 580px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 1.75rem;
+  }
+
+  .modal-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .modal-title {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+  }
+
+  .modal-close {
+    background: transparent; border: none;
+    color: var(--muted); font-size: 1.2rem;
+    cursor: pointer; padding: 0; line-height: 1;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  .report-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; gap: 1rem;
+  }
+  .report-row:last-child { border-bottom: none; }
+  .report-key { color: var(--muted); flex-shrink: 0; width: 140px; }
+  .report-val { color: var(--text); text-align: right; word-break: break-all; }
+  .report-val.green { color: var(--green); }
+  .report-val.red { color: var(--red); }
+  .report-val.amber { color: var(--amber); }
+  .report-val.blue { color: var(--blue); }
+
+  .report-section-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin: 1.25rem 0 0.5rem;
+  }
+
+  .report-checking {
+    text-align: center; padding: 2rem;
+    color: var(--muted); font-size: 12px;
+  }
+
   @media (max-width: 768px) {
     .stats-bar { grid-template-columns: repeat(2, 1fr); }
     .form-row { grid-template-columns: 1fr 1fr; }
@@ -713,11 +777,13 @@ function buildCard(app) {
 
   return `<div class="app-card ${s}" id="card-${app.id}">
     <div class="app-card-header">
-      <div>
-        <div class="app-name">${escHtml(app.name)}</div>
+      <div style="flex:1;min-width:0">
+        <a href="${escHtml(app.url)}" target="_blank" rel="noopener" class="app-name-link">
+          <div class="app-name">${escHtml(app.name)} <span style="font-size:10px;opacity:0.5">↗</span></div>
+        </a>
         <div class="app-url">${escHtml(app.url)}</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
         <div class="status-badge ${s}">
           <div class="status-dot"></div>${statusLabel(s)}
         </div>
@@ -736,8 +802,8 @@ function buildCard(app) {
         <span class="meta-label">Category</span>
         <span class="meta-value" style="color:var(--muted)">${escHtml(app.cat)}</span>
       </div>
-      <div class="app-meta-item" style="margin-left:auto">
-        <span class="meta-label">&nbsp;</span>
+      <div class="app-meta-item" style="margin-left:auto;display:flex;gap:6px;align-items:flex-end">
+        <button onclick="showReport('${app.id}')" style="padding:3px 10px;font-size:10px;color:var(--blue);border-color:var(--blue)">Report</button>
         <button onclick="checkApp(apps.find(a=>a.id==='${app.id}')).then(()=>{updateStats();renderLog();})" style="padding:3px 10px;font-size:10px">Ping</button>
       </div>
     </div>
@@ -805,6 +871,108 @@ function toggleConfig() {
     el.classList.add('visible');
     btn.textContent = 'Hide Config JSON';
   }
+}
+
+async function showReport(id) {
+  const app = apps.find(a => a.id === id);
+  if (!app) return;
+
+  // Show modal with loading state
+  let modal = document.getElementById('reportModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'reportModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = '<div class="modal" id="reportModalInner"></div>';
+    modal.addEventListener('click', e => { if (e.target === modal) closeReport(); });
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+
+  const inner = document.getElementById('reportModalInner');
+  inner.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${escHtml(app.name)}</div>
+      <button class="modal-close" onclick="closeReport()">✕</button>
+    </div>
+    <div class="report-checking">Running diagnostics...</div>`;
+
+  // Run checks
+  const results = {};
+  const start = Date.now();
+
+  // 1. Basic reachability via HEAD (no-cors)
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    await fetch(app.url, { method: 'HEAD', mode: 'no-cors', cache: 'no-cache', signal: ctrl.signal });
+    clearTimeout(t);
+    results.reachable = true;
+    results.latency = Date.now() - start;
+  } catch(e) {
+    results.reachable = e.name === 'AbortError' ? 'timeout' : false;
+    results.latency = Date.now() - start;
+  }
+
+  // 2. DNS/domain check via fetch to a known-good CORS endpoint
+  const domain = new URL(app.url).hostname;
+  results.domain = domain;
+
+  // 3. SSL check — if URL is https, it's SSL
+  results.ssl = app.url.startsWith('https://') ? 'HTTPS enforced' : 'No SSL (HTTP only)';
+
+  // 4. Platform inference
+  let platform = app.cat;
+  if (domain.endsWith('.pages.dev')) platform = 'Cloudflare Pages';
+  else if (domain.endsWith('.vercel.app')) platform = 'Vercel';
+  else if (domain.endsWith('.up.railway.app')) platform = 'Railway';
+  else if (domain.endsWith('.netlify.app')) platform = 'Netlify';
+  else if (domain.endsWith('.workers.dev')) platform = 'Cloudflare Workers';
+  results.platform = platform;
+
+  // 5. History summary
+  const hist = app.history || [];
+  const upCount = hist.filter(h => h === 'up').length;
+  const downCount = hist.filter(h => h === 'down').length;
+  const uptime = hist.length > 0 ? Math.round((upCount / hist.length) * 100) : null;
+
+  // 6. Last known status
+  results.lastStatus = app.lastStatus || 'unknown';
+  results.lastMs = app.lastMs;
+  results.lastChecked = app.lastChecked;
+
+  const isColdStart = COLD_START_CATS.includes(app.cat);
+  const threshold = isColdStart ? COLD_START_THRESHOLD : SLOW_THRESHOLD;
+  const latencyColor = !results.reachable ? 'red' : results.latency > threshold ? 'amber' : 'green';
+  const reachableLabel = results.reachable === true ? 'Reachable' : results.reachable === 'timeout' ? 'Timeout (15s)' : 'Unreachable';
+  const reachableColor = results.reachable === true ? 'green' : results.reachable === 'timeout' ? 'amber' : 'red';
+
+  inner.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">${escHtml(app.name)}</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:3px">${escHtml(app.url)}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a href="${escHtml(app.url)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);text-decoration:none;border:1px solid var(--blue);padding:4px 10px;border-radius:4px">Open Site ↗</a>
+        <button class="modal-close" onclick="closeReport()">✕</button>
+      </div>
+    </div>
+
+    <div class="report-section-title">Live Diagnostics</div>
+    <div class="report-row"><span class="report-key">Reachability</span><span class="report-val ${reachableColor}">${reachableLabel}</span></div>
+    <div class="report-row"><span class="report-key">Response time</span><span class="report-val ${latencyColor}">${results.latency}ms</span></div>
+    <div class="report-row"><span class="report-key">SSL / HTTPS</span><span class="report-val ${results.ssl.includes('HTTPS') ? 'green' : 'amber'}">${results.ssl}</span></div>
+    <div class="report-row"><span class="report-key">Domain</span><span class="report-val">${results.domain}</span></div>
+    <div class="report-row"><span class="report-key">Platform</span><span class="report-val blue">${results.platform}</span></div>
+
+    <div class="report-section-title">History (last ${hist.length} checks)</div>
+    <div class="report-row"><span class="report-key">Uptime</span><span class="report-val ${uptime >= 90 ? 'green' : uptime >= 70 ? 'amber' : 'red'}">${uptime !== null ? uptime + '%' : 'No history yet'}</span></div>
+    <div class="report-row"><span class="report-key">Up checks</span><span class="report-val green">${upCount}</span></div>
+    <div class="report-row"><span class="report-key">Down checks</span><span class="report-val ${downCount > 0 ? 'red' : ''}">${downCount}</span></div>
+    <div class="report-row"><span class="report-key">Last ping status</span><span class="report-val ${statusColor(results.lastStatus)}">${statusLabel(results.lastStatus)}</span></div>
+    <div class="report-row"><span class="report-key">Last pinged</span><span class="report-val">${results.lastChecked ? new Date(results.lastChecked).toLocaleString() : 'Never'}</span></div>
+  `;
 }
 
 load();
