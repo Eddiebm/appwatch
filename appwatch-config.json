@@ -1,15 +1,63 @@
 {
   "apps": [
-    { "name": "COARE Holdings Site",  "url": "https://coare.bio",                     "cat": "Other" },
-    { "name": "FrankGrant",           "url": "https://frankgrant.pages.dev",           "cat": "Cloudflare Pages" },
-    { "name": "MedOS Africa",         "url": "https://medos-africa.pages.dev",         "cat": "Cloudflare Pages" },
-    { "name": "Bannerman Leasing",    "url": "https://leasingapp.pages.dev",           "cat": "Cloudflare Pages" },
-    { "name": "Relentis",             "url": "https://relentis.app",                   "cat": "Other" },
-    { "name": "RentLease",            "url": "https://rentlease.app",                  "cat": "Other" },
-    { "name": "Real Estate Without Bullshit", "url": "https://www.realestatewithoutbullshit.com", "cat": "Other" },
-    { "name": "NIH Payline",          "url": "https://www.nihpayline.com",              "cat": "Other" },
-    { "name": "LexOS Africa",         "url": "https://lexos-africa.pages.dev",          "cat": "Cloudflare Pages" },
-    { "name": "MedOS",                "url": "https://medos.pages.dev",                 "cat": "Cloudflare Pages" }
+    { "name": "COARE Holdings",                "url": "https://coare.bio",                                     "cat": "Other" },
+    { "name": "Real Estate Without Bullshit",  "url": "https://www.realestatewithoutbullshit.com",             "cat": "Cloudflare Pages" },
+    { "name": "NIH Payline",                   "url": "https://www.nihpayline.com",                            "cat": "Other" },
+    { "name": "RentLease",                     "url": "https://rentlease.app",                                 "cat": "Cloudflare Pages" },
+    { "name": "Relentis",                      "url": "https://relentis.app",                                  "cat": "Vercel" },
+
+    { "name": "MedOS",                         "url": "https://medos.pages.dev",                               "cat": "Cloudflare Pages" },
+    { "name": "MedOS Africa (medosafrica.org)","url": "https://medosafrica.org",                               "cat": "Cloudflare Pages" },
+    { "name": "FrankGrant",                    "url": "https://frankgrant.pages.dev",                          "cat": "Cloudflare Pages" },
+    { "name": "Bannerman Leasing (legacy)",    "url": "https://leasingapp.pages.dev",                          "cat": "Cloudflare Pages" },
+    { "name": "Bannerman Leasing",             "url": "https://bannermanleasing.pages.dev",                    "cat": "Cloudflare Pages" },
+    { "name": "LexOS Africa",                  "url": "https://lexos-africa.pages.dev",                        "cat": "Cloudflare Pages" },
+    { "name": "LexOS Web",                     "url": "https://lexos-web.pages.dev",                           "cat": "Cloudflare Pages" },
+    { "name": "Bannerman Content Machine",     "url": "https://bannerman-content-machine.pages.dev",           "cat": "Cloudflare Pages" },
+    { "name": "MarketPilot",                   "url": "https://chiefmarketingofficer.app",                     "cat": "Cloudflare Pages" },
+    { "name": "MarketPilot 1",                 "url": "https://marketpilot1.pages.dev",                        "cat": "Cloudflare Pages" },
+    { "name": "Amelia's Wisdom",               "url": "https://ameliaswisdom.pages.dev",                       "cat": "Cloudflare Pages" },
+    { "name": "CodeMama (CF)",                 "url": "https://codemama.pages.dev",                            "cat": "Cloudflare Pages" },
+    { "name": "AppWatch",                      "url": "https://appwatch-co3.pages.dev",                        "cat": "Cloudflare Pages" },
+
+    { "name": "MamaPromptAngel (idea2lunch)",  "url": "https://idea2lunch.com",                                "cat": "Vercel" },
+    { "name": "Lunch2Idea",                    "url": "https://lunch2idea.vercel.app",                         "cat": "Vercel" },
+    { "name": "Mama Prompt Angel",             "url": "https://mama-prompt-angel.vercel.app",                  "cat": "Vercel" },
+    { "name": "PromptGuide",                   "url": "https://promptguide-beta.vercel.app",                   "cat": "Vercel" },
+    { "name": "PromptGuide Fix",               "url": "https://promptguide-fix.vercel.app",                    "cat": "Vercel" },
+
+    { "name": "FounderPath (busos-app)",       "url": "https://founderpath.app",                               "cat": "Vercel" },
+    { "name": "Reader App",                    "url": "https://reader-app-taupe.vercel.app",                   "cat": "Vercel" },
+    { "name": "Ghana Rental (12kofidzata)",    "url": "https://12kofidzata.com",                               "cat": "Vercel" },
+
+    { "name": "VitaLink (3163j)",              "url": "https://vitalink-3163j.vercel.app",                     "cat": "Vercel" },
+    { "name": "VitaLink (fvuxj)",              "url": "https://vitalink-fvuxj.vercel.app",                     "cat": "Vercel" },
+    { "name": "Developer Axis",                "url": "https://developer-axis.vercel.app",                     "cat": "Vercel" },
+    { "name": "BioAxis",                       "url": "https://bioaxis.vercel.app",                            "cat": "Vercel" },
+    { "name": "Axis AI Chief of Staff",        "url": "https://axis-ai-chief-of-staff.vercel.app",             "cat": "Vercel" },
+
+    { "name": "Career Platform",               "url": "https://career-platform-ruby.vercel.app",               "cat": "Vercel" },
+    { "name": "Command",                       "url": "https://command-sigma.vercel.app",                      "cat": "Vercel" },
+    { "name": "Ablavie",                       "url": "https://ablavie.vercel.app",                            "cat": "Vercel" },
+    { "name": "Viral Digital",                 "url": "https://viraldigital-eddiebms-projects.vercel.app",     "cat": "Vercel" },
+    { "name": "Viral Product Empire",          "url": "https://viral-product-empire-eddiebms-projects.vercel.app", "cat": "Vercel" },
+    { "name": "Workspace",                     "url": "https://workspace-sigma-flame.vercel.app",              "cat": "Vercel" },
+
+    { "name": "Frank",                         "url": "https://frank-teal.vercel.app",                         "cat": "Vercel" },
+    { "name": "Grant Portal",                  "url": "https://grant-portal-rho.vercel.app",                   "cat": "Vercel" },
+    { "name": "Grant Father",                  "url": "https://grant-father-gold.vercel.app",                  "cat": "Vercel" },
+    { "name": "Grant Father (jthq)",           "url": "https://grant-father-jthq.vercel.app",                  "cat": "Vercel" },
+    { "name": "GrantVal",                      "url": "https://grantval-eddiebms-projects.vercel.app",         "cat": "Vercel" },
+
+    { "name": "Bannerman Group",               "url": "https://bannermangroup.vercel.app",                     "cat": "Vercel" },
+    { "name": "Furnished Finder",              "url": "https://furnished-finder-blond.vercel.app",             "cat": "Vercel" },
+    { "name": "Frame (useframe.net)",          "url": "https://www.useframe.net",                              "cat": "Vercel" },
+    { "name": "GovOps",                        "url": "https://govops-eight.vercel.app",                       "cat": "Vercel" },
+    { "name": "GovOps (2pz2)",                 "url": "https://govops-2pz2.vercel.app",                        "cat": "Vercel" },
+    { "name": "CapTable",                      "url": "https://captable-black.vercel.app",                     "cat": "Vercel" },
+    { "name": "COARE Holdings (Vercel)",       "url": "https://coare-holdings.vercel.app",                     "cat": "Vercel" },
+    { "name": "MFS Autopilot (KeepAliveHQ)",   "url": "https://keepalivehq.com",                               "cat": "Vercel" },
+    { "name": "Roofing Calculator",            "url": "https://roofing-calculator-eddiebms-projects.vercel.app","cat": "Vercel" }
   ],
 
   "_notes": {
